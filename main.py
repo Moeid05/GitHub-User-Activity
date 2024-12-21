@@ -1,31 +1,41 @@
-import argparse
-import http.client
+import sys
 import json
-from decouple import config
-
-def fetch_github_activity(username):
-
-    token = config('token')
+import http.client
+def get_latest_events(username):
     conn = http.client.HTTPSConnection("api.github.com")
     headers = {
-        'Authorization': token,
-        'X-GitHub-Api-Version': '2022-11-28'
+        'User-Agent': 'Python GitHub Events Script'
     }
-    conn.request("GET", "/events", headers=headers)
+    conn.request("GET", f"/users/{username}/events", headers=headers)
+
     response = conn.getresponse()
-    data = response.read()
-    if response.status == 200:
-        events = json.loads(data)
-        print(events)
-    else:
-        print(f"Error: {response.status} - {data.decode('utf-8')}")
+    if response.status == 200 :
+        events = json.load(response)
+        for e in events :
+            event_type = e['type']
+            if event_type == 'PushEvent' :
+                commits_count = len(e['payload']['commits'])
+                print(f'- Pushed {commits_count} commits to {e["repo"]["url"]}')
+            elif event_type == 'IssuesEvent' :
+                print(f'- Opened a new issue in {e["repo"]["url"]}')
+            elif event_type =='WatchEvent' :
+                print(f'- Starred {e["repo"]["url"]}')
+            elif event_type == 'PullRequestEvent' :
+                print(f'- pulled from {e["repo"]["url"]}')
+            elif event_type == 'ForkEvent' :
+                print(f'- forked {e["repo"]["url"]}')
+            elif event_type == 'CreateEvent' :
+                print(f'- created {e["payload"]["ref_type"]} {e["payload"]["ref"]} in {e["repo"]["url"]}')
+            elif event_type == 'DeleteEvent' :
+                print(f'- deleted {e["repo"]["url"]}')
+
+    else :
+        print(response.status)
     conn.close()
 
-def main():
-    parser = argparse.ArgumentParser(description='Fetch GitHub activity for a user.')
-    parser.add_argument('username', type=str, help='GitHub username to fetch activity for')
-    args = parser.parse_args()
-    fetch_github_activity(args.username)
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        username = sys.argv[1]
+        get_latest_events(username)
+    else:
+        print("Please provide a GitHub username and a personal access token as command line arguments.")
